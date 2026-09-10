@@ -9,7 +9,8 @@
 #   Enter        open the selected file or folder with its default app
 #   Ctrl-O       reveal the selection in the file manager
 #   Ctrl-Y       copy the selected path to the clipboard
-#   Ctrl-E       compose a Gmail message; the typed text becomes the subject
+#   Ctrl-E       compose a Gmail message: words with @ are recipients, the rest
+#                is the subject ("bob@example.com invoice for august")
 #   Ctrl-W       web search the typed text
 #   Esc          close
 #
@@ -23,7 +24,7 @@ set -uo pipefail
 
 root="${FINDER_ROOT:-$HOME}"
 limit="${FINDER_LIMIT:-400}"
-mail_url="${FINDER_MAIL_URL:-https://mail.google.com/mail/?view=cm&fs=1&su=}"
+mail_url="${FINDER_MAIL_URL:-https://mail.google.com/mail/?view=cm&fs=1}"
 web_url="${FINDER_WEB_URL:-https://www.google.com/search?q=}"
 exclude='/(\.git|node_modules|\.cache|\.npm|\.nuget|\.cargo|\.rustup|\.local/share/(mise|Trash|containers)|bin/(Debug|Release)|obj)(/|$)'
 
@@ -62,6 +63,22 @@ search() {
 }
 
 expand() { printf '%s' "${1/#\~\//$root/}"; }
+
+# Words containing @ are recipients; everything else is the subject.
+#   "bob@example.com invoice for august"  ->  to=bob@example.com  su=invoice for august
+mail_compose_url() {
+  local word to="" subject=""
+  for word in $1; do
+    if [[ $word == *@* ]]; then
+      to+="${to:+,}${word%,}"
+    else
+      subject+="${subject:+ }$word"
+    fi
+  done
+  printf '%s' "$mail_url"
+  [[ -n $to ]] && printf '&to=%s' "$(urlencode "$to")"
+  [[ -n $subject ]] && printf '&su=%s' "$(urlencode "$subject")"
+}
 
 launch_detached() {
   [[ -n ${FINDER_DEBUG:-} ]] && printf '%s launch: %q\n' "$(date +%T)" "$*" >> "$FINDER_DEBUG"
@@ -108,7 +125,7 @@ sel=$(sed -n 3p <<<"$result")
 path=$(expand "$sel")
 
 case "$key" in
-  ctrl-e) launch_detached xdg-open "${mail_url}$(urlencode "$query")" ;;
+  ctrl-e) launch_detached xdg-open "$(mail_compose_url "$query")" ;;
   ctrl-w) [[ -n $query ]] && launch_detached xdg-open "${web_url}$(urlencode "$query")" ;;
   ctrl-y) [[ -n $sel ]] && printf '%s' "$path" | wl-copy ;;
   ctrl-o) [[ -n $sel && $sel != "= "* ]] && launch_detached xdg-open "$(dirname "$path")" ;;

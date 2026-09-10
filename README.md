@@ -15,9 +15,14 @@ floating terminal styled by your current theme.
 | Enter  | Open the selected file or folder in its default app |
 | Ctrl-O | Reveal the selection in the file manager          |
 | Ctrl-Y | Copy the selected path to the clipboard           |
-| Ctrl-E | Compose a Gmail message with the typed text as subject |
+| Ctrl-E | Compose a Gmail message from the typed text (see below) |
 | Ctrl-W | Web search the typed text                          |
 | Esc    | Close                                              |
+
+For email, any word containing `@` becomes a recipient and the remaining
+words become the subject, so `bob@example.com invoice for august` opens a
+compose window addressed to Bob with that subject. Several addresses work
+too. Text with no address just sets the subject.
 
 Type a math expression instead of a name (`245+33*16`, `(1200*0.07)/12`,
 `2^10`) and the answer shows as the first row. Enter copies it to the
@@ -55,7 +60,7 @@ Environment variables read at launch:
 |-------------------|-------------------------|----------------------------------|
 | `FINDER_ROOT`     | `$HOME`                 | Directory the search is limited to |
 | `FINDER_LIMIT`    | `400`                   | Maximum rows shown               |
-| `FINDER_MAIL_URL` | Gmail compose URL       | Prefix the subject is appended to |
+| `FINDER_MAIL_URL` | Gmail compose URL       | Base URL; `&to=` and `&su=` are appended |
 | `FINDER_WEB_URL`  | Google search URL       | Prefix the query is appended to  |
 
 Noisy directories (`.git`, `node_modules`, `.cache`, build output, package
