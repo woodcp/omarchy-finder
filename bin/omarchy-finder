@@ -13,6 +13,9 @@
 #   Ctrl-W       web search the typed text
 #   Esc          close
 #
+# Type a math expression (245+33*16, (1200*0.07)/12, 2^10) and the answer
+# appears as the first row; Enter copies it to the clipboard.
+#
 # Matching is done by plocate against the system index, so results are instant
 # on a large home directory. The index is refreshed nightly by
 # plocate-updatedb.timer; run `sudo updatedb` to refresh it by hand.
@@ -37,9 +40,20 @@ urlencode() {
   printf '%s' "$out"
 }
 
+calc() {
+  local expr="$1" out
+  [[ $expr =~ ^[0-9[:space:]+*/().%^-]+$ && $expr =~ [0-9] && $expr =~ [-+*/%^] ]] || return 1
+  # The regex above admits only digits, spaces, and arithmetic operators, so
+  # the expression is safe to hand to awk verbatim.
+  out=$(awk "BEGIN { printf \"%.10g\", ($expr) }" 2>/dev/null) || return 1
+  [[ -n $out && $out != *inf* && $out != *nan* ]] || return 1
+  printf '= %s\n' "$out"
+}
+
 search() {
   local q="$1" words
   [[ -z ${q// } ]] && return 0
+  calc "$q" || true
   read -r -a words <<<"$q"
   plocate -i -l 4000 -- "$root/" "${words[@]}" 2>/dev/null \
     | grep -Ev "$exclude" \
@@ -85,7 +99,13 @@ case "$key" in
   ctrl-e) launch_detached xdg-open "${mail_url}$(urlencode "$query")" ;;
   ctrl-w) [[ -n $query ]] && launch_detached xdg-open "${web_url}$(urlencode "$query")" ;;
   ctrl-y) [[ -n $sel ]] && printf '%s' "$path" | wl-copy ;;
-  ctrl-o) [[ -n $sel ]] && launch_detached xdg-open "$(dirname "$path")" ;;
-  "")     [[ $status -eq 0 && -n $sel ]] && launch_detached xdg-open "$path" ;;
+  ctrl-o) [[ -n $sel && $sel != "= "* ]] && launch_detached xdg-open "$(dirname "$path")" ;;
+  "")
+    if [[ $sel == "= "* ]]; then
+      printf '%s' "${sel#= }" | wl-copy
+    elif [[ $status -eq 0 && -n $sel ]]; then
+      launch_detached xdg-open "$path"
+    fi
+    ;;
 esac
 exit 0

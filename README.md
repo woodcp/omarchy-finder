@@ -19,6 +19,10 @@ floating terminal styled by your current theme.
 | Ctrl-W | Web search the typed text                          |
 | Esc    | Close                                              |
 
+Type a math expression instead of a name (`245+33*16`, `(1200*0.07)/12`,
+`2^10`) and the answer shows as the first row. Enter copies it to the
+clipboard.
+
 Multiple words all have to match somewhere in the path, so `afoa report md`
 narrows quickly. Matching is case-insensitive.
 
