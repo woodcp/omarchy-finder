@@ -63,7 +63,13 @@ search() {
 
 expand() { printf '%s' "${1/#\~\//$root/}"; }
 
-launch_detached() { setsid uwsm-app -- "$@" >/dev/null 2>&1 & }
+launch_detached() {
+  [[ -n ${FINDER_DEBUG:-} ]] && printf '%s launch: %q\n' "$(date +%T)" "$*" >> "$FINDER_DEBUG"
+  # uwsm-app hands the command to the session's app daemon and returns; the
+  # app outlives this terminal. Backgrounding it here races the terminal
+  # closing and the request never gets sent.
+  uwsm-app -- "$@" >/dev/null 2>&1
+}
 
 case "${1:-}" in
   --search)
@@ -90,9 +96,12 @@ result=$(
     --expect ctrl-o,ctrl-y,ctrl-e,ctrl-w \
     --bind "change:reload(bash '$self' --search {q})" \
     --preview "bash '$self' --preview {}" \
-    --preview-window 'right,45%,border-left'
+    --preview-window 'right,45%,border-left' </dev/null
 )
 status=$?
+if [[ -n ${FINDER_DEBUG:-} ]]; then
+  printf '%s status=%s result=%q\n' "$(date +%T)" "$status" "$result" >> "$FINDER_DEBUG"
+fi
 query=$(sed -n 1p <<<"$result")
 key=$(sed -n 2p <<<"$result")
 sel=$(sed -n 3p <<<"$result")
