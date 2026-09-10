@@ -26,6 +26,15 @@ clipboard.
 Multiple words all have to match somewhere in the path, so `afoa report md`
 narrows quickly. Matching is case-insensitive.
 
+## Previews
+
+The right-hand pane previews the highlighted result: images, SVGs, and the
+first page of PDFs render as pictures using sixel graphics, which foot (the
+Omarchy terminal) supports natively. Videos show a frame, text files show
+their head, and folders show their listing. Rendering uses ImageMagick and
+poppler, both part of the Omarchy base install; if `chafa` is installed it is
+used for images instead.
+
 ## Install
 
 ```bash

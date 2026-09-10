@@ -70,6 +70,9 @@ case "${1:-}" in
     search "${2:-}"
     exit 0
     ;;
+  --preview)
+    exec bash "$(dirname "$(readlink -f "$0")")/omarchy-finder-preview" "$(expand "${2:-}")"
+    ;;
   --launch)
     exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.finder --title=Finder -e "$0"
     ;;
@@ -86,7 +89,7 @@ result=$(
     --header-first --info hidden --layout reverse --border none --margin 1,2 \
     --expect ctrl-o,ctrl-y,ctrl-e,ctrl-w \
     --bind "change:reload(bash '$self' --search {q})" \
-    --preview 'p={}; p="${p/#\~\//'"$root"'/}"; if [[ -d $p ]]; then ls -1 --color=always "$p" | head -50; else file -b "$p"; echo; head -c 4000 "$p" 2>/dev/null | head -60; fi' \
+    --preview "bash '$self' --preview {}" \
     --preview-window 'right,45%,border-left'
 )
 status=$?

@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Preview helper for omarchy-finder's fzf pane.
+# Images and PDFs render as sixel graphics (foot supports them natively);
+# everything else falls back to a directory listing or text head.
+set -uo pipefail
+path="$1"
+cols="${FZF_PREVIEW_COLUMNS:-60}"
+lines="${FZF_PREVIEW_LINES:-30}"
+# Cell size in pixels is not known here; 8x16 is a safe estimate that keeps
+# the image inside the pane on typical monitors.
+px_w=$(( cols * 8 ))
+px_h=$(( (lines - 2) * 16 ))
+
+render_image() {
+  if command -v chafa >/dev/null; then
+    chafa -f sixel -s "${cols}x$((lines - 2))" --animate off "$1" 2>/dev/null
+  else
+    magick "$1[0]" -auto-orient -resize "${px_w}x${px_h}>" sixel:- 2>/dev/null
+  fi
+}
+
+if [[ -d $path ]]; then
+  ls -1 --color=always --group-directories-first "$path" | head -n "$lines"
+  exit 0
+fi
+[[ -f $path ]] || exit 0
+
+mime=$(file -b --mime-type "$path")
+case $mime in
+  image/svg+xml)
+    magick -background none -density 96 "$path" -resize "${px_w}x${px_h}>" sixel:- 2>/dev/null \
+      || echo "SVG: $(identify -format '%wx%h' "$path" 2>/dev/null)"
+    ;;
+  image/*)
+    echo "$(identify -format '%wx%h %m' "$path[0]" 2>/dev/null)"
+    render_image "$path"
+    ;;
+  application/pdf)
+    pages=$(pdfinfo "$path" 2>/dev/null | awk '/^Pages:/ {print $2}')
+    echo "PDF, ${pages:-?} page(s). Page 1:"
+    tmp=$(mktemp -t finder-pdf-XXXXXX)
+    trap 'rm -f "$tmp" "$tmp.png"' EXIT
+    if pdftoppm -png -r 50 -f 1 -l 1 -singlefile "$path" "$tmp" 2>/dev/null; then
+      render_image "$tmp.png"
+    else
+      pdftotext -l 1 "$path" - 2>/dev/null | head -n "$lines"
+    fi
+    ;;
+  video/*)
+    echo "$(file -b "$path" | cut -c1-120)"
+    tmp=$(mktemp -t finder-vid-XXXXXX.png)
+    trap 'rm -f "$tmp"' EXIT
+    ffmpeg -v quiet -y -ss 1 -i "$path" -frames:v 1 "$tmp" 2>/dev/null && render_image "$tmp"
+    ;;
+  text/*|application/json|application/x-shellscript|inode/x-empty)
+    head -c 8000 "$path" | head -n "$lines"
+    ;;
+  *)
+    file -b "$path" | cut -c1-200
+    ;;
+esac
