@@ -4,16 +4,7 @@ Spotlight for [Omarchy](https://omarchy.org). Press **Super+D**, start typing,
 and the thing you want is one Enter away: a file, a folder, a quick
 calculation, an email, or a web search.
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│  ⏎ open · ^O reveal · ^Y copy · ^E email · ^W web · esc close        │
-│    afoa scouting md                                                  │
-│  > ~/Work/afoa/scouting-reports/2026-08-28-leander/scouting-report.md│  # Leander at Pflugerville
-│    ~/Work/afoa/scouting-reports/2026-09-04-hutto/scouting-report.md  │
-│    ~/Work/afoa/college/2026-09-05-mcmurry/scouting-report.md         │  ## Offense
-│                                                                      │  ...
-└──────────────────────────────────────────────────────────────────────┘
-```
+![omarchy-finder picker floating over the desktop](docs/screenshot.png)
 
 Nothing to install beyond this repo. It is a shell script on top of tools
 Omarchy already ships: `plocate` for instant indexed search, `fzf` for the
