@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# omarchy-finder: Spotlight-style finder for Omarchy.
+#
+#   omarchy-finder            run the picker in the current terminal
+#   omarchy-finder --launch   open the picker in a floating terminal (hotkey target)
+#   omarchy-finder --search Q internal: print matches for Q (used by fzf reload)
+#
+# Keys inside the picker:
+#   Enter        open the selected file or folder with its default app
+#   Ctrl-O       reveal the selection in the file manager
+#   Ctrl-Y       copy the selected path to the clipboard
+#   Ctrl-E       compose a Gmail message; the typed text becomes the subject
+#   Ctrl-W       web search the typed text
+#   Esc          close
+#
+# Matching is done by plocate against the system index, so results are instant
+# on a large home directory. The index is refreshed nightly by
+# plocate-updatedb.timer; run `sudo updatedb` to refresh it by hand.
+set -uo pipefail
+
+root="${FINDER_ROOT:-$HOME}"
+limit="${FINDER_LIMIT:-400}"
+mail_url="${FINDER_MAIL_URL:-https://mail.google.com/mail/?view=cm&fs=1&su=}"
+web_url="${FINDER_WEB_URL:-https://www.google.com/search?q=}"
+exclude='/(\.git|node_modules|\.cache|\.npm|\.nuget|\.cargo|\.rustup|\.local/share/(mise|Trash|containers)|bin/(Debug|Release)|obj)(/|$)'
+
+urlencode() {
+  local s="$1" out="" c
+  for (( i = 0; i < ${#s}; i++ )); do
+    c=${s:i:1}
+    case $c in
+      [a-zA-Z0-9.~_-]) out+="$c" ;;
+      ' ') out+="+" ;;
+      *) printf -v c '%%%02X' "'$c"; out+="$c" ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
+search() {
+  local q="$1" words
+  [[ -z ${q// } ]] && return 0
+  read -r -a words <<<"$q"
+  plocate -i -l 4000 -- "$root/" "${words[@]}" 2>/dev/null \
+    | grep -Ev "$exclude" \
+    | head -n "$limit" \
+    | sed "s|^$root/|~/|"
+}
+
+expand() { printf '%s' "${1/#\~\//$root/}"; }
+
+launch_detached() { setsid uwsm-app -- "$@" >/dev/null 2>&1 & }
+
+case "${1:-}" in
+  --search)
+    search "${2:-}"
+    exit 0
+    ;;
+  --launch)
+    exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.finder --title=Finder -e "$0"
+    ;;
+esac
+
+for cmd in plocate fzf xdg-open; do
+  command -v "$cmd" >/dev/null || { echo "omarchy-finder: missing $cmd" >&2; exit 1; }
+done
+
+self=$(readlink -f "$0")
+result=$(
+  fzf --disabled --print-query --no-sort --exact \
+    --prompt '  ' --header '⏎ open · ^O reveal · ^Y copy · ^E email · ^W web · esc close' \
+    --header-first --info hidden --layout reverse --border none --margin 1,2 \
+    --expect ctrl-o,ctrl-y,ctrl-e,ctrl-w \
+    --bind "change:reload(bash '$self' --search {q})" \
+    --preview 'p={}; p="${p/#\~\//'"$root"'/}"; if [[ -d $p ]]; then ls -1 --color=always "$p" | head -50; else file -b "$p"; echo; head -c 4000 "$p" 2>/dev/null | head -60; fi' \
+    --preview-window 'right,45%,border-left'
+)
+status=$?
+query=$(sed -n 1p <<<"$result")
+key=$(sed -n 2p <<<"$result")
+sel=$(sed -n 3p <<<"$result")
+path=$(expand "$sel")
+
+case "$key" in
+  ctrl-e) launch_detached xdg-open "${mail_url}$(urlencode "$query")" ;;
+  ctrl-w) [[ -n $query ]] && launch_detached xdg-open "${web_url}$(urlencode "$query")" ;;
+  ctrl-y) [[ -n $sel ]] && printf '%s' "$path" | wl-copy ;;
+  ctrl-o) [[ -n $sel ]] && launch_detached xdg-open "$(dirname "$path")" ;;
+  "")     [[ $status -eq 0 && -n $sel ]] && launch_detached xdg-open "$path" ;;
+esac
+exit 0
