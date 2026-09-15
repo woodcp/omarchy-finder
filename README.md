@@ -92,7 +92,14 @@ Add arguments and they pass through, so the finder doubles as an app launcher.
 | `chrome` | Google Chrome |
 | `chrome --incognito https://youtube.com` | Chrome, incognito, at YouTube |
 | `obsidian` | Obsidian |
-| `btop` | (a GUI app; terminal programs need a terminal) |
+| `btop` | btop in a floating terminal |
+| `lazygit` | lazygit in a floating terminal |
+
+Terminal programs (btop, nvim, lazygit, ssh, …) open in a floating terminal via
+Omarchy's TUI launcher; GUI apps launch directly. The finder ships with a list
+of common terminal commands, extendable in
+`~/.config/omarchy-finder/terminal-commands` (one name per line). The preview
+tells you which way a command will open.
 
 Friendly names map to real binaries through
 `~/.config/omarchy-finder/command-aliases` (one `name=binary` per line); `chrome`

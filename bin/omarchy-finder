@@ -47,6 +47,20 @@ if [[ -r $_alias_file ]]; then
   done < "$_alias_file"
 fi
 
+# Commands that need a terminal: the run row opens them in a floating terminal
+# instead of launching as a GUI app. Extend via
+# ~/.config/omarchy-finder/terminal-commands (one name per line).
+declare -A TERM_CMDS=()
+for _t in btop htop top btm nvtop nvim vim vi nano micro emacs helix hx \
+          less more man ssh mosh ranger yazi nnn lf lazygit lazydocker gitui \
+          tig ncdu tmux screen python python3 ipython node irb bat w3m lynx; do
+  TERM_CMDS[$_t]=1
+done
+_term_file="$HOME/.config/omarchy-finder/terminal-commands"
+if [[ -r $_term_file ]]; then
+  while read -r _t; do [[ -z $_t || $_t == \#* ]] && continue; TERM_CMDS[$_t]=1; done < "$_term_file"
+fi
+
 urlencode() {
   local s="$1" out="" c
   for (( i = 0; i < ${#s}; i++ )); do
@@ -116,6 +130,18 @@ mail_compose_url() {
   [[ -n $subject ]] && printf '&su=%s' "$(urlencode "$subject")"
 }
 
+# Launch a parsed command line: terminal apps in a floating terminal, GUI apps
+# directly.
+launch_run() {
+  local b; b=$(basename "${1:-}")
+  if [[ -n ${TERM_CMDS[$b]:-} ]] && command -v omarchy-launch-tui >/dev/null; then
+    [[ -n ${FINDER_DEBUG:-} ]] && printf '%s run(tui): %q\n' "$(date +%T)" "$*" >> "$FINDER_DEBUG"
+    omarchy-launch-tui --app-id=org.omarchy.terminal "$@" >/dev/null 2>&1
+  else
+    launch_detached "$@"
+  fi
+}
+
 launch_detached() {
   [[ -n ${FINDER_DEBUG:-} ]] && printf '%s launch: %q\n' "$(date +%T)" "$*" >> "$FINDER_DEBUG"
   # uwsm-app hands the command to the session's app daemon and returns; the
@@ -135,6 +161,7 @@ case "${1:-}" in
       _cmd="${_arg#* }"; _first="${_cmd%% *}"
       echo "Run command:"; echo; echo "  $_cmd"; echo
       _bin=$(command -v "$_first" 2>/dev/null); echo "Resolves to: ${_bin:-not found}"
+      [[ -n ${TERM_CMDS[$(basename "${_bin:-$_first}")]:-} ]] && echo "Opens in a floating terminal."
       [[ -n $_bin ]] && file -b "$_bin" 2>/dev/null
       exit 0
     fi
@@ -177,9 +204,9 @@ case "$key" in
     if [[ $sel == "= "* ]]; then
       printf '%s' "${sel#= }" | wl-copy
     elif [[ $sel == "▶ "* ]]; then
-      # Run row: split the command line into argv and launch it as a GUI app.
+      # Run row: split the command line into argv and launch it.
       read -r -a _argv <<<"${sel#▶ }"
-      (( ${#_argv[@]} )) && launch_detached "${_argv[@]}"
+      (( ${#_argv[@]} )) && launch_run "${_argv[@]}"
     elif [[ $status -eq 0 && -n $sel ]]; then
       launch_detached xdg-open "$path"
     fi
