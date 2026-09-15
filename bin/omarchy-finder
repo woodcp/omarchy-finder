@@ -17,6 +17,10 @@
 # Type a math expression (245+33*16, (1200*0.07)/12, 2^10) and the answer
 # appears as the first row; Enter copies it to the clipboard.
 #
+# Type a command name, optionally with arguments (chrome, "obsidian ~/notes",
+# "google-chrome-stable --incognito https://x"), and a "▶ run" row appears;
+# Enter launches it. Names map through ~/.config/omarchy-finder/command-aliases.
+#
 # Matching is done by plocate against the system index, so results are instant
 # on a large home directory. The index is refreshed nightly by
 # plocate-updatedb.timer; run `sudo updatedb` to refresh it by hand.
@@ -27,6 +31,21 @@ limit="${FINDER_LIMIT:-400}"
 mail_url="${FINDER_MAIL_URL:-https://mail.google.com/mail/?view=cm&fs=1}"
 web_url="${FINDER_WEB_URL:-https://www.google.com/search?q=}"
 exclude='/(\.git|node_modules|\.cache|\.npm|\.nuget|\.cargo|\.rustup|\.local/share/(mise|Trash|containers)|bin/(Debug|Release)|obj)(/|$)'
+
+# Command launcher: type a command name (optionally with args) and a run row
+# appears. These aliases map friendly names to real binaries; add your own in
+# ~/.config/omarchy-finder/command-aliases as "name=binary" lines.
+declare -A CMD_ALIASES=(
+  [chrome]=google-chrome-stable
+  [google-chrome]=google-chrome-stable
+)
+_alias_file="$HOME/.config/omarchy-finder/command-aliases"
+if [[ -r $_alias_file ]]; then
+  while IFS='=' read -r _n _b; do
+    [[ -z $_n || $_n == \#* ]] && continue
+    CMD_ALIASES[$_n]=$_b
+  done < "$_alias_file"
+fi
 
 urlencode() {
   local s="$1" out="" c
@@ -51,10 +70,27 @@ calc() {
   printf '= %s\n' "$out"
 }
 
+# If the query's first word is a runnable command (or a known alias), emit a
+# run row. Enter on it launches the whole line as a GUI app.
+runcmd() {
+  local q="$1" first target bin rest
+  first=${q%% *}
+  [[ -z $first ]] && return 1
+  target=${CMD_ALIASES[$first]:-$first}
+  bin=$(command -v "$target") || return 1
+  if [[ $first == "$target" ]]; then
+    printf '\u25b6 %s\n' "$q"
+  else
+    rest=${q#"$first"}
+    printf '\u25b6 %s%s\n' "$target" "$rest"
+  fi
+}
+
 search() {
   local q="$1" words
   [[ -z ${q// } ]] && return 0
   calc "$q" || true
+  runcmd "$q" || true
   read -r -a words <<<"$q"
   plocate -i -l 4000 -- "$root/" "${words[@]}" 2>/dev/null \
     | grep -Ev "$exclude" \
@@ -94,7 +130,15 @@ case "${1:-}" in
     exit 0
     ;;
   --preview)
-    exec bash "$(dirname "$(readlink -f "$0")")/omarchy-finder-preview" "$(expand "${2:-}")"
+    _arg="${2:-}"
+    if [[ $_arg == \u25b6\ * || $_arg == "▶ "* ]]; then
+      _cmd="${_arg#* }"; _first="${_cmd%% *}"
+      echo "Run command:"; echo; echo "  $_cmd"; echo
+      _bin=$(command -v "$_first" 2>/dev/null); echo "Resolves to: ${_bin:-not found}"
+      [[ -n $_bin ]] && file -b "$_bin" 2>/dev/null
+      exit 0
+    fi
+    exec bash "$(dirname "$(readlink -f "$0")")/omarchy-finder-preview" "$(expand "$_arg")"
     ;;
   --launch)
     exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.finder --title=Finder -e "$0"
@@ -127,11 +171,15 @@ path=$(expand "$sel")
 case "$key" in
   ctrl-e) launch_detached xdg-open "$(mail_compose_url "$query")" ;;
   ctrl-w) [[ -n $query ]] && launch_detached xdg-open "${web_url}$(urlencode "$query")" ;;
-  ctrl-y) [[ -n $sel ]] && printf '%s' "$path" | wl-copy ;;
-  ctrl-o) [[ -n $sel && $sel != "= "* ]] && launch_detached xdg-open "$(dirname "$path")" ;;
+  ctrl-y) [[ -n $sel && $sel != "= "* && $sel != "▶ "* ]] && printf '%s' "$path" | wl-copy ;;
+  ctrl-o) [[ -n $sel && $sel != "= "* && $sel != "▶ "* ]] && launch_detached xdg-open "$(dirname "$path")" ;;
   "")
     if [[ $sel == "= "* ]]; then
       printf '%s' "${sel#= }" | wl-copy
+    elif [[ $sel == "▶ "* ]]; then
+      # Run row: split the command line into argv and launch it as a GUI app.
+      read -r -a _argv <<<"${sel#▶ }"
+      (( ${#_argv[@]} )) && launch_detached "${_argv[@]}"
     elif [[ $status -eq 0 && -n $sel ]]; then
       launch_detached xdg-open "$path"
     fi

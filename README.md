@@ -82,6 +82,23 @@ The pane on the right previews whatever is highlighted: images, SVGs, and the
 first page of PDFs as pictures, a frame from videos, the head of text files,
 and the listing of folders.
 
+### Launch commands
+
+Type a command name and a **▶ run** row appears at the top. Enter launches it.
+Add arguments and they pass through, so the finder doubles as an app launcher.
+
+| You type | Runs |
+|----------|------|
+| `chrome` | Google Chrome |
+| `chrome --incognito https://youtube.com` | Chrome, incognito, at YouTube |
+| `obsidian` | Obsidian |
+| `btop` | (a GUI app; terminal programs need a terminal) |
+
+Friendly names map to real binaries through
+`~/.config/omarchy-finder/command-aliases` (one `name=binary` per line); `chrome`
+is mapped to `google-chrome-stable` out of the box. A first word that is not a
+command is ignored, and the finder just searches files.
+
 ### Calculate
 
 Type an expression instead of a name and the answer is the first row.
